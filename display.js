@@ -55,7 +55,7 @@ function render(state){
   const host=document.getElementById("courts");
   host.innerHTML="";
 
-  const dateIso=normalizeDate(state.date)||"2026-02-07";
+  const dateIso = normalizeDate(state.date || state.day) || "2026-02-07";
   const day=SCHEDULES[dateIso]||SCHEDULES["2026-02-07"];
 
   for(let c=1;c<=6;c++){
