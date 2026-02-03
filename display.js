@@ -137,3 +137,13 @@ window.addEventListener("DOMContentLoaded", ()=>{
   tick();
   setInterval(tick, 1000);
 });
+window.setDate = function(iso){
+  showMsg(`送出：date=${iso}`);
+
+  // ✅ 一次寫三個 key，確保後端一定吃到
+  hit(`${API_URL}?type=set&key=date&value=${encodeURIComponent(iso)}`);
+  hit(`${API_URL}?type=set&key=day&value=${encodeURIComponent(iso)}`);
+  hit(`${API_URL}?type=set&key=Date&value=${encodeURIComponent(iso)}`);
+
+  setTimeout(()=>refresh().catch(()=>{}), 500);
+};
