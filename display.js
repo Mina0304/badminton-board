@@ -1,10 +1,11 @@
-/* 🔴 改成你實際在用的 Apps Script /exec */
 const API_URL =
   "https://script.google.com/macros/s/AKfycbyg_h0KqcPVuojAXTJROQ8Zg6x-mXHsYceYGUbyDzYVhWnwtPWZ72L0jtuuhMXcG_2mcg/exec";
 
-/* 內建賽程（比賽名稱） */
+/* 內建賽程（比賽名稱）
+   ✅ 這裡請貼你原本那一整段 SCHEDULES（完全不改）
+*/
 const SCHEDULES = {
-  "2026-02-07": {
+    "2026-02-07": {
     court1:["男團1","男團7","男雙1","男雙7","女雙2","男單1","男單7","女單4","男雙17","男單10","女雙9","男團8","男團14","男雙23","男雙29","女雙16","男雙34","男團15"],
     court2:["男團2","女團1","男雙2","男雙8","女雙3","男單2","男單8","男雙12","男雙18","男單11","女雙10","男團9","女團6","男雙24","男雙30","女雙17","男雙35","男團16"],
     court3:["男團3","女團2","男雙3","男雙9","女雙4","男單3","男單9","男雙13","男雙19","男單12","女雙11","男團10","女團7","男雙25","男雙31","女雙18","男雙36","男團17"],
@@ -22,7 +23,23 @@ const SCHEDULES = {
   }
 };
 
-/* 日期正規化 */
+/* ✅ 畫面上顯示除錯/狀態（不需要 Console） */
+function showOnPage(msg){
+  let el = document.getElementById("debug");
+  if(!el){
+    el = document.createElement("div");
+    el.id = "debug";
+    el.style.cssText =
+      "position:fixed;left:12px;bottom:12px;right:12px;z-index:9999;" +
+      "background:#111;border:1px solid #444;border-radius:12px;padding:10px;" +
+      "font:12px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;" +
+      "color:#fff;opacity:.9;white-space:pre-wrap";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+}
+
+/* 日期正規化：把 2026-02-07T15:00:00.000Z 變成 2026-02-07 */
 function normalizeDate(v){
   if(!v) return null;
   let s = String(v).trim();
@@ -38,58 +55,85 @@ function normalizeDate(v){
   return null;
 }
 
-/* JSONP 讀取 */
+/* ✅ 超穩 JSONP：同時送 callback / cb / jsonp 三種參數名 */
 function loadJSONP(){
   return new Promise((resolve,reject)=>{
-    const cb="cb_"+Date.now()+"_"+Math.random().toString(36).slice(2);
-    window[cb]=(p)=>{delete window[cb];script.remove();resolve(p);};
-    const script=document.createElement("script");
-    script.src=`${API_URL}?type=get&callback=${cb}&_=${Math.random()}`;
-    script.onerror=()=>reject();
+    const cb = "cb_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+    window[cb] = (p) => { delete window[cb]; script.remove(); resolve(p); };
+
+    const script = document.createElement("script");
+    const u = `${API_URL}?type=get&callback=${cb}&cb=${cb}&jsonp=${cb}&_=${Date.now()}`;
+    script.src = u;
+    script.onerror = () => reject(new Error("JSONP 載入失敗（可能網路或 URL 錯）"));
     document.body.appendChild(script);
   });
 }
 
-/* 繪製畫面 */
 function render(state){
-  const host=document.getElementById("courts");
-  host.innerHTML="";
+  const host = document.getElementById("courts");
+  if(!host){
+    showOnPage("❌ 找不到 <div id=\"courts\">：請確認 index.html 有這行：<div id=\"courts\" class=\"courts\"></div>");
+    return;
+  }
 
-  const rawDate =
-  (state.date ?? state.day ?? state.Date ?? "").toString().trim();
-const dateIso = normalizeDate(rawDate) || "2026-02-07";
-  const day=SCHEDULES[dateIso]||SCHEDULES["2026-02-07"];
+  const rawDate = (state.date ?? state.day ?? state.Date ?? "").toString().trim();
+  const dateIso = normalizeDate(rawDate) || "2026-02-07";
 
+  const day = SCHEDULES[dateIso] || SCHEDULES["2026-02-07"];
+  if(!day){
+    showOnPage(`❌ SCHEDULES 沒有這天：${dateIso}\n請確認 SCHEDULES key 是 "2026-02-07" / "2026-02-08"`);
+    return;
+  }
+
+  host.innerHTML = "";
   for(let c=1;c<=6;c++){
-    const idx=Number(state[`court${c}`]??0);
-    const list=day[`court${c}`]||[];
+    const idx = Number(state[`court${c}`] ?? 0);
+    const list = day[`court${c}`] || [];
 
     let now="—", next="—";
-    if(state.status==="中場休息"){
+    if(state.status === "中場休息"){
       now = next = "中場休息";
     }else{
-      now = list[idx] ?? "—";
+      now  = list[idx]   ?? "—";
       next = list[idx+1] ?? "—";
     }
 
-    const card=document.createElement("div");
-    card.className="card";
-    card.innerHTML=`
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
       <div class="name">Court ${c}</div>
       <div class="now">現在：${now}</div>
       <div class="next">下一場：${next}</div>
     `;
     host.appendChild(card);
   }
+
+  // ✅ 在畫面上顯示「真的吃到哪一天/哪個 idx」，你一眼就知道有沒有切成功
+  showOnPage(
+    `✅ 已更新\n` +
+    `date(raw) = ${rawDate}\n` +
+    `dateIso   = ${dateIso}\n` +
+    `status    = ${state.status}\n` +
+    `court1..6 = ${[1,2,3,4,5,6].map(i=>state["court"+i]).join(", ")}\n` +
+    `_updated  = ${state._updated || ""}`
+  );
 }
 
-/* 每秒同步 */
 async function tick(){
   try{
-    const p=await loadJSONP();
-    if(p.ok) render(p.data||{});
-  }catch(e){}
+    const p = await loadJSONP();
+    if(!p || !p.ok){
+      showOnPage(`❌ 後端回傳 ok=false\n${JSON.stringify(p)}`);
+      return;
+    }
+    render(p.data || {});
+  }catch(e){
+    showOnPage("❌ " + (e && e.message ? e.message : String(e)));
+  }
 }
 
-setInterval(tick,1000);
-tick();
+/* ✅ 等 DOM 好了再跑，避免 courts 還沒出現 */
+window.addEventListener("DOMContentLoaded", ()=>{
+  tick();
+  setInterval(tick, 1000);
+});
