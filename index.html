@@ -142,58 +142,88 @@
     }
 
     function render(state){
-      let dateIso = state.date || "2026-02-07";
+      function normalizeDate(v){
+  if (v == null) return null;
 
-// 🔧 自動修正日期格式（超重要）
-if (dateIso.includes("/")) {
-  dateIso = dateIso.replace(/\//g, "-");
+  // 1) 如果是數字（Google 試算表日期序號）
+  if (typeof v === "number" && isFinite(v)) {
+    const ms = (v - 25569) * 86400 * 1000; // Excel/Sheets serial -> epoch
+    const dt = new Date(ms);
+    if (!isNaN(dt)) {
+      const y = dt.getUTCFullYear();
+      const m = String(dt.getUTCMonth()+1).padStart(2,"0");
+      const d = String(dt.getUTCDate()).padStart(2,"0");
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  // 2) 文字
+  let s = String(v).trim();
+
+  // 常見：2026-02-08T00:00:00.000Z
+  if (s.includes("T")) s = s.split("T")[0];
+
+  // 2026/2/8 -> 2026-2-8
+  s = s.replace(/\//g, "-");
+
+  // 2-8 或 2/8（沒有年份）
+  if (/^\d{1,2}-\d{1,2}$/.test(s)) {
+    const [m,d] = s.split("-").map(x => x.padStart(2,"0"));
+    return `2026-${m}-${d}`;
+  }
+
+  // 2026-2-8 / 2026-02-8 / 2026-2-08 / 2026-02-08
+  const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) {
+    const y = m[1];
+    const mm = m[2].padStart(2,"0");
+    const dd = m[3].padStart(2,"0");
+    return `${y}-${mm}-${dd}`;
+  }
+
+  return null;
 }
-if (dateIso.match(/^\d{4}-\d{1}-\d{1}$/)) {
-  const [y,m,d] = dateIso.split("-");
-  dateIso = `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
+
+function render(state){
+  const host = document.getElementById("courts");
+  host.innerHTML = "";
+
+  // ✅ 超保險：抓得到就用，抓不到就用 2/7
+  const dateIso = normalizeDate(state.date) || "2026-02-07";
+
+  // ✅ 再保險：若 key 對不到，至少會 fallback 到 2/7
+  const day = SCHEDULES[dateIso] || SCHEDULES["2026-02-07"];
+
+  for(let c=1;c<=6;c++){
+    const key = `court${c}`;
+    const idx = Number(state[key] ?? 0);
+
+    const list = (day && day[key]) ? day[key] : [];
+
+    let nowText="—", nextText="—";
+
+    if(state.status === "中場休息"){
+      nowText = "中場休息";
+      nextText = "中場休息";
+    }else if(list.length === 0){
+      // 🔥 這行是抓 bug 用：如果你看到它，代表 GitHub 那份沒有讀到賽程
+      nowText = `賽程缺失（${dateIso} ${key}）`;
+      nextText = `idx=${idx}`;
+    }else{
+      nowText = list[idx] ?? `第${idx}場（找不到名稱）`;
+      nextText = list[idx+1] ?? `第${idx+1}場（找不到名稱）`;
+    }
+
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <div class="name">Court ${c}</div>
+      <div class="now">現在：${nowText}</div>
+      <div class="next">下一場：${nextText}</div>
+    `;
+    host.appendChild(card);
+  }
 }
-if (dateIso === "2/7") dateIso = "2026-02-07";
-if (dateIso === "2/8") dateIso = "2026-02-08";
-      const status = String(state.status ?? "—");
-
-      document.getElementById("dateLabel").textContent = formatDateTW(dateIso);
-      document.getElementById("statusLabel").textContent = status;
-      document.getElementById("updatedLabel").textContent = new Date().toLocaleTimeString();
-
-      const day = SCHEDULES[dateIso];
-      const host = document.getElementById("courts");
-      host.innerHTML = "";
-
-      for(let c=1;c<=6;c++){
-        const key = `court${c}`;
-        const list = (day && day[key]) ? day[key] : [];
-        const idx = Number(state[key] ?? 0);
-
-        const nowItem = list[idx];
-        const nextItem = list[idx+1];
-
-        const nowText  = (status === "中場休息")
-          ? "中場休息"
-          : (nowItem ? `${nowItem.time} ${nowItem.label}` : "—");
-
-        const nextText = (status === "中場休息")
-          ? "中場休息"
-          : (nextItem ? `${nextItem.time} ${nextItem.label}` : "—");
-
-        const card = document.createElement("div");
-        card.className = "card";
-        card.innerHTML = `
-          <div class="top">
-            <div class="name">Court ${c}</div>
-            <div class="badge">目前序號：${idx}</div>
-          </div>
-          <div class="now">現在：${nowText}</div>
-          <div class="next">下一場：${nextText}</div>
-          <div class="listTitle">完整賽程（此場地）</div>
-        `;
-        card.appendChild(renderCourtSchedule(list, idx));
-        host.appendChild(card);
-      }
     }
 
     async function tick(){
