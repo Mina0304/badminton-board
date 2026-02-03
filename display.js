@@ -1,5 +1,5 @@
 const API_URL =
-  "https://script.google.com/macros/s/AKfycbyg_h0KqcPVuojAXTJROQ8Zg6x-mXHsYceYGUbyDzYVhWnwtPWZ72L0jtuuhMXcG_2mcg/exec";
+  "https://script.google.com/macros/s/AKfycbxbkOw4wND_WIj1xG1GWZphtY4Btv3x7KGZo14N_lcIp_eoxTnCkABadJ9TV2bcDoh9Vw/exec";
 
 /* 內建賽程（比賽名稱）
    ✅ 這裡請貼你原本那一整段 SCHEDULES（完全不改）
